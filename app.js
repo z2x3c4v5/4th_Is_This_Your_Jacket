@@ -20,7 +20,6 @@ const sentence = (it, mode) => {
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 const store = {
   get(k, d) { try { const v = localStorage.getItem('jacket.' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
@@ -311,284 +310,161 @@ function wireAudio(el, url, target) {
   if (m) m.onclick = () => speak(target);
 }
 
+/* ---------------- 내 물건(Me): 활동지마다 6개 중 2개 ---------------- */
+let me = new Set(store.get('me', []).filter(i => i >= 0 && i < ITEMS.length).slice(0, 2));
+const meReady = () => me.size === 2;
+const saveMe = () => store.set('me', [...me]);
+
 /* ---------------- 탭 ---------------- */
-$$('.tab').forEach(t => t.onclick = () => {
-  $$('.tab').forEach(x => x.classList.toggle('on', x === t));
-  $$('.panel').forEach(p => p.classList.toggle('on', p.id === t.dataset.tab));
+const pages = {};
+function goTab(name) {
+  $$('.tab').forEach(x => x.classList.toggle('on', x.dataset.tab === name));
+  $$('.panel').forEach(p => p.classList.toggle('on', p.id === name));
   if (activeSession) activeSession.stop();
   if ('speechSynthesis' in window) speechSynthesis.cancel();
-});
+  if (pages[name]) pages[name].render();
+  window.scrollTo(0, 0);
+}
+$$('.tab').forEach(t => t.onclick = () => goTab(t.dataset.tab));
 
-/* ---------------- ① 표현 익히기 ---------------- */
-(function learn() {
-  const grid = $('#learnGrid'), detail = $('#learnDetail');
-  grid.innerHTML = ITEMS.map((it, i) => `
-    <button class="card" data-i="${i}">
-      <img src="${img(it)}" alt="${it.en}">
-      <div class="colorbar" style="background:${it.hex}"></div>
-      <div class="word">${esc(it.en)}</div>
-      <div class="kword">${it.ko} · 내 것은 ${it.koColor}(${it.color})</div>
-    </button>`).join('');
+/* ---------------- ① 내 물건 고르기 ---------------- */
+(function choose() {
+  const grid = $('#chooseGrid'), status = $('#chooseStatus');
 
-  const show = i => {
-    const it = ITEMS[i];
-    $$('.card', grid).forEach(c => c.classList.toggle('on', Number(c.dataset.i) === i));
-    const lines = [['q', '질문'], ['yes', '내가 주인이면'], ['no', '내가 주인이 아니면']].map(([m, lab]) => {
-      const s = sentence(it, m);
-      return `<div class="line"><span class="badge ${m}">${lab}</span><span class="en">${esc(s.en)}</span>
-        <button class="say" data-say="${esc(s.en)}">🔊 듣기</button><span class="k">${s.ko}</span></div>`;
-    }).join('');
-    detail.innerHTML = `<h3>${esc(it.en)} (${it.ko})</h3>${lines}
-      <div class="row"><button class="btn primary small" id="goPractice">🎙️ 이 물건으로 말하기 연습하기</button></div>`;
-    detail.hidden = false;
-    $$('[data-say]', detail).forEach(b => b.onclick = () => speak(b.dataset.say));
-    $('#goPractice').onclick = () => { practice.select(i, 'q'); $('.tab[data-tab="practice"]').click(); };
-    speak(sentence(it, 'q').en);
+  const render = () => {
+    grid.innerHTML = ITEMS.map((it, i) => `
+      <button class="card ${me.has(i) ? 'on' : ''}" data-i="${i}">
+        ${me.has(i) ? '<span class="metag big">Me</span>' : ''}
+        <img src="${img(it)}" alt="${it.en}">
+        <div class="colorbar" style="background:${it.hex}"></div>
+        <div class="word">${esc(it.en)}</div>
+        <div class="kword">${it.ko} · ${it.koColor}(${it.color})</div>
+      </button>`).join('');
+    if (meReady()) {
+      const names = [...me].sort().map(i => ITEMS[i].en).join(', ');
+      status.innerHTML = `<div class="feedback good">✅ 내 물건(Me): <b>${esc(names)}</b> — 나머지 4개는 내 물건이 아니에요.</div>
+        <div class="row center">
+          <button class="btn primary" data-go="mine">② Me 물건 연습 ➜</button>
+          <button class="btn primary" data-go="notmine">③ 내 물건 아닌 것 연습 ➜</button>
+        </div>`;
+    } else {
+      status.innerHTML = `<div class="feedback info">👆 내 활동지에서 <b class="me">Me</b>라고 적힌 물건 2개를 눌러 주세요. (${me.size}/2)</div>`;
+    }
+    $$('[data-go]', status).forEach(b => b.onclick = () => goTab(b.dataset.go));
   };
-  grid.onclick = e => { const c = e.target.closest('.card'); if (c) show(Number(c.dataset.i)); };
+
+  grid.onclick = e => {
+    const c = e.target.closest('.card'); if (!c) return;
+    const i = Number(c.dataset.i);
+    if (me.has(i)) me.delete(i);
+    else { if (me.size >= 2) me.delete([...me][0]); me.add(i); speak(`My ${ITEMS[i].en}.`); }
+    saveMe(); render();
+  };
+  $$('#choose [data-say]').forEach(b => b.onclick = () => speak(b.dataset.say));
+  pages.choose = { render };
+  render();
 })();
 
-/* ---------------- ② 말하기 연습 ---------------- */
-const practice = (function () {
-  const st = { i: 0, mode: 'q' };
-  const best = store.get('best', {});
-  const ORDER = ['q', 'yes', 'no'];
+/* ---------------- ② Me 물건 연습 / ③ 내 물건 아닌 것 연습 ---------------- */
+function makePractice(root, { answer, pick, title }) {
+  const st = { k: 0, mode: 'q' };
+  const best = () => store.get('best', {});
+  const list = () => ITEMS.map((_, i) => i).filter(pick);
+  const isYes = answer === 'yes';
 
-  const renderThumbs = () => {
-    $('#pItems').innerHTML = ITEMS.map((it, i) => {
-      const dots = ORDER.map(m => { const b = best[`${it.id}-${m}`]; return b == null ? '○' : b >= 70 ? '★' : '☆'; }).join('');
-      return `<button class="thumb ${i === st.i ? 'on' : ''}" data-i="${i}">
-        <span class="sw" style="background:${it.hex}"></span>
-        <img src="${img(it)}" alt="${it.en}"><div class="tw">${esc(it.en)}</div><div class="dots" title="질문·Yes·No 최고 점수">${dots}</div></button>`;
-    }).join('');
-  };
+  root.innerHTML = `
+    <div class="need" hidden>
+      <div class="feedback info">먼저 <b>① 내 물건 고르기</b>에서 Me 물건 2개를 골라 주세요.</div>
+      <div class="row center"><button class="btn primary go-choose">① 내 물건 고르러 가기</button></div>
+    </div>
+    <div class="body">
+      <div class="step-label">${title}</div>
+      <div class="thumbs items"></div>
+      <div class="modes">
+        <button class="mode" data-mode="q">❓ 질문하기<small>Is this your ___?</small></button>
+        <button class="mode" data-mode="${answer}">${isYes ? '⭕ 대답하기 (Yes)' : '❌ 대답하기 (No)'}
+          <small>${isYes ? "Yes, it's mine." : "No, it's not. My ___ is ___."}</small></button>
+      </div>
+      <div class="practice-card">
+        <div class="pc-left"><img class="p-img" alt=""><div class="colorbar p-color"></div></div>
+        <div class="pc-right">
+          <div class="situation"></div>
+          <div class="target"></div>
+          <div class="ko"></div>
+          <div class="row">
+            <button class="btn listen p-listen">🔊 듣기</button>
+            <button class="btn listen p-ask">👂 친구 질문 듣기</button>
+            <label class="toggle"><input type="checkbox" class="p-hide"> 문장 숨기기 (도전!)</label>
+          </div>
+        </div>
+      </div>
+      <div class="p-rec"></div>
+      <div class="row center"><button class="btn ghost p-next">다음 ➜</button></div>
+    </div>`;
+  $('.go-choose', root).onclick = () => goTab('choose');
 
-  const SITUATION = {
-    q: '친구를 만났어요. 물건을 보여 주며 물어보세요.',
-    yes: '친구가 “Is this your ___?” 하고 물었어요. <b>내 물건이 맞아요!</b>',
-    no: '친구가 “Is this your ___?” 하고 물었어요. <b>내 물건이 아니에요!</b> 내 물건의 색깔을 말해요.',
-  };
+  const cur = () => ITEMS[list()[st.k]];
+  const target = () => sentence(cur(), st.mode);
 
-  const rec = mountRecorder($('#pRec'), () => sentence(ITEMS[st.i], st.mode).en, {
+  const rec = mountRecorder($('.p-rec', root), () => target().en, {
     onResult(r) {
       if (!r.supported || r.score == null || r.empty) return;
-      const k = `${ITEMS[st.i].id}-${st.mode}`;
-      if (best[k] == null || r.score > best[k]) { best[k] = r.score; store.set('best', best); renderThumbs(); }
+      const b = best(), key = `${cur().id}-${st.mode}`;
+      if (b[key] == null || r.score > b[key]) { b[key] = r.score; store.set('best', b); renderThumbs(); }
     },
   });
 
+  const renderThumbs = () => {
+    const b = best();
+    $('.items', root).innerHTML = list().map((i, k) => {
+      const it = ITEMS[i];
+      const dots = ['q', answer].map(m => { const v = b[`${it.id}-${m}`]; return v == null ? '○' : v >= 70 ? '★' : '☆'; }).join('');
+      return `<button class="thumb ${k === st.k ? 'on' : ''}" data-k="${k}">
+        ${isYes ? '<span class="metag">Me</span>' : ''}<span class="sw" style="background:${it.hex}"></span>
+        <img src="${img(it)}" alt="${it.en}"><div class="tw">${esc(it.en)}</div>
+        <div class="dots" title="질문·대답 최고 점수 (★ 70점 이상)">${dots}</div></button>`;
+    }).join('');
+  };
+
   const render = () => {
-    const it = ITEMS[st.i], s = sentence(it, st.mode);
+    const ready = meReady();
+    $('.need', root).hidden = ready;
+    $('.body', root).hidden = !ready;
+    if (!ready) return;
+    if (st.k >= list().length) st.k = 0;
+    const it = cur(), s = target();
     renderThumbs();
-    $$('#pModes .mode').forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
-    $('#pImg').src = img(it); $('#pImg').alt = it.en;
-    $('#pColor').style.background = it.hex;
-    $('#pSituation').innerHTML = SITUATION[st.mode].replace('___', esc(it.en));
-    $('#pTarget').textContent = s.en;
-    $('#pTarget').classList.toggle('hidden', $('#pHide').checked);
-    $('#pKo').textContent = s.ko;
+    $$('.mode', root).forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
+    $('.p-img', root).src = img(it); $('.p-img', root).alt = it.en;
+    $('.p-color', root).style.background = it.hex;
+    $('.situation', root).innerHTML = st.mode === 'q'
+      ? '친구에게 물건을 보여 주며 물어보세요.'
+      : `친구가 “Is this your ${esc(it.en)}?” 하고 물었어요. ` +
+        (isYes ? '<b>내 물건(Me)이 맞아요!</b>' : `<b>내 물건이 아니에요!</b> 내 ${it.koTopic} ${it.koColor}이에요.`);
+    $('.target', root).textContent = s.en;
+    $('.target', root).classList.toggle('hidden', $('.p-hide', root).checked);
+    $('.ko', root).textContent = s.ko;
+    $('.p-ask', root).hidden = st.mode === 'q';
     rec.reset();
   };
 
-  $('#pItems').onclick = e => { const t = e.target.closest('.thumb'); if (t) { st.i = Number(t.dataset.i); render(); } };
-  $('#pModes').onclick = e => { const b = e.target.closest('.mode'); if (b) { st.mode = b.dataset.mode; render(); } };
-  $('#pListen').onclick = () => speak(sentence(ITEMS[st.i], st.mode).en);
-  $('#pHide').onchange = () => $('#pTarget').classList.toggle('hidden', $('#pHide').checked);
-  $('#pTarget').onclick = () => { if ($('#pHide').checked) $('#pTarget').classList.toggle('hidden'); };
-  $('#pNext').onclick = () => {
-    const k = ORDER.indexOf(st.mode);
-    if (k < 2) st.mode = ORDER[k + 1]; else { st.mode = 'q'; st.i = (st.i + 1) % ITEMS.length; }
-    render();
+  $('.items', root).onclick = e => { const t = e.target.closest('.thumb'); if (t) { st.k = Number(t.dataset.k); st.mode = 'q'; render(); } };
+  $('.modes', root).onclick = e => {
+    const b = e.target.closest('.mode'); if (!b) return;
+    st.mode = b.dataset.mode; render();
+    if (st.mode !== 'q') speak(sentence(cur(), 'q').en, { pitch: 1.3 });
+  };
+  $('.p-listen', root).onclick = () => speak(target().en);
+  $('.p-ask', root).onclick = () => speak(sentence(cur(), 'q').en, { pitch: 1.3 });
+  $('.p-hide', root).onchange = () => $('.target', root).classList.toggle('hidden', $('.p-hide', root).checked);
+  $('.target', root).onclick = () => { if ($('.p-hide', root).checked) $('.target', root).classList.toggle('hidden'); };
+  $('.p-next', root).onclick = () => {
+    if (st.mode === 'q') { st.mode = answer; render(); speak(sentence(cur(), 'q').en, { pitch: 1.3 }); }
+    else { st.mode = 'q'; st.k = (st.k + 1) % list().length; render(); }
   };
 
-  render();
-  return { select(i, mode) { st.i = i; st.mode = mode; render(); } };
-})();
+  return { render };
+}
 
-/* ---------------- ③ 친구 찾기 게임 (정보 차 활동) ---------------- */
-(function game() {
-  const FRIENDS = [
-    { name: 'Minji', face: '👧', pitch: 1.3 }, { name: 'Junho', face: '👦', pitch: 1.1 },
-    { name: 'Seoyeon', face: '👩', pitch: 1.2 }, { name: 'Jiho', face: '🧒', pitch: 1.15 },
-    { name: 'Yuna', face: '👱‍♀️', pitch: 1.35 }, { name: 'Tom', face: '👨', pitch: 0.95 },
-    { name: 'Amy', face: '👩‍🦰', pitch: 1.25 }, { name: 'Ben', face: '🧑', pitch: 1.0 },
-  ];
-  const PASS = 60; // 이 점수 이상이면 친구가 알아들어요
-
-  let me = new Set();
-  let g = null; // 진행 상태
-
-  const renderMe = () => {
-    $('#gMeGrid').innerHTML = ITEMS.map((it, i) => `
-      <button class="thumb ${me.has(i) ? 'on' : ''}" data-i="${i}">
-        ${me.has(i) ? '<span class="metag">Me</span>' : ''}<span class="sw" style="background:${it.hex}"></span>
-        <img src="${img(it)}" alt="${it.en}"><div class="tw">${esc(it.en)}</div></button>`).join('');
-    $('#gStart').disabled = me.size !== 2;
-  };
-  $('#gMeGrid').onclick = e => {
-    const t = e.target.closest('.thumb'); if (!t) return;
-    const i = Number(t.dataset.i);
-    if (me.has(i)) me.delete(i); else if (me.size < 2) me.add(i); else { me.delete([...me][0]); me.add(i); }
-    renderMe();
-  };
-  $('#gRandom').onclick = () => { me = new Set(shuffle([0, 1, 2, 3, 4, 5]).slice(0, 2)); renderMe(); };
-  $('#gStart').onclick = start;
-  $('#gReset').onclick = () => { if (activeSession) activeSession.stop(); $('#gPlay').hidden = true; $('#gSetup').hidden = false; };
-
-  function start() {
-    // 친구마다 Me가 아닌 물건 중 2개를 무작위로 가지고 있어요
-    const others = ITEMS.map((_, i) => i).filter(i => !me.has(i));
-    const friends = shuffle(FRIENDS).map((f, k) => ({ ...f, own: new Set(shuffle(others).slice(0, 2)), voiceIdx: k }));
-    g = { friends, k: 0, names: ITEMS.map(() => []), met: 0, flash: -1 };
-    $('#gSetup').hidden = true; $('#gPlay').hidden = false;
-    meetFriend();
-  }
-
-  const friend = () => g.friends[g.k % g.friends.length];
-  const say = (text, f = friend()) => { $('#gBubble').textContent = text; return speak(text, { pitch: f.pitch, voiceIdx: f.voiceIdx }); };
-  const stage = html => { $('#gStage').innerHTML = html; };
-
-  function renderSheet() {
-    $('#gSheet').innerHTML = ITEMS.map((it, i) => `
-      <div class="scell ${g.flash === i ? 'new' : ''}">
-        <span class="sw" style="background:${it.hex}"></span>
-        <img src="${img(it)}" alt="${it.en}">
-        <div class="tw">${esc(it.en)}</div>
-        ${me.has(i) ? '<div class="metag">Me</div>' : `<div class="names">${g.names[i].map(esc).join(', ') || '&nbsp;'}</div>`}
-      </div>`).join('');
-    g.flash = -1;
-    $('#gNames').textContent = g.names.reduce((a, n) => a + n.length, 0);
-    $('#gMet').textContent = g.met;
-  }
-
-  function meetFriend() {
-    const f = friend();
-    g.asked = new Set();
-    $('#gAvatar').textContent = f.face;
-    $('#gName').textContent = f.name;
-    renderSheet();
-    say(`Hi! I'm ${f.name}.`);
-    askStep();
-  }
-
-  // 1단계: 내가 친구에게 물어보기
-  function askStep(msg = '') {
-    const f = friend();
-    stage(`
-      <h3>❓ 내 차례! ${esc(f.name)}에게 물어보세요</h3>
-      <p class="tip">물어볼 물건을 고르세요. (<b class="me">Me</b> 물건은 내 것이니까 물어보지 않아요)</p>
-      <div class="thumbs" id="gAskPick">${ITEMS.map((it, i) => `
-        <button class="thumb" data-i="${i}" ${me.has(i) || g.asked.has(i) ? 'disabled' : ''}>
-          ${me.has(i) ? '<span class="metag">Me</span>' : ''}<span class="sw" style="background:${it.hex}"></span>
-          <img src="${img(it)}" alt="${it.en}"><div class="tw">${esc(it.en)}</div></button>`).join('')}</div>
-      ${msg}`);
-    $('#gAskPick').onclick = e => {
-      const t = e.target.closest('.thumb'); if (!t || t.disabled) return;
-      askRecord(Number(t.dataset.i));
-    };
-  }
-
-  function askRecord(i) {
-    const it = ITEMS[i], q = sentence(it, 'q').en;
-    stage(`
-      <h3>❓ 물건을 보여 주며 물어보세요</h3>
-      <div class="ask-item"><img src="${img(it)}" alt="${it.en}">
-        <div><div class="q-en">${esc(q)}</div><div class="ko">${sentence(it, 'q').ko}</div>
-        <div class="row"><button class="say" id="gHear">🔊 듣기</button><button class="say" id="gBack">↩ 다른 물건</button></div></div></div>
-      <div id="gRec"></div><div id="gFb"></div>`);
-    $('#gHear').onclick = () => speak(q);
-    $('#gBack').onclick = () => askStep();
-    mountRecorder($('#gRec'), () => q, {
-      label: '🎙️ 녹음하고 물어보기',
-      async onResult(r) {
-        const fb = $('#gFb');
-        if (r.supported && r.score < PASS) {
-          fb.innerHTML = `<div class="feedback bad">${esc(friend().name)}: “Sorry? 다시 말해 줄래?” — 위의 빨간 단어를 더 또박또박 말해 보세요!</div>`;
-          say('Sorry? Can you say that again?');
-          return;
-        }
-        g.asked.add(i);
-        const owns = friend().own.has(i);
-        const ans = sentence(it, owns ? 'yes' : 'no').en;
-        fb.innerHTML = `<div class="feedback info">💬 ${esc(friend().name)}: “${esc(ans)}”</div>`;
-        $('#gRec').querySelector('.rec').disabled = true;
-        await say(ans);
-        if (owns) {
-          if (!g.names[i].includes(friend().name)) g.names[i].push(friend().name);
-          g.flash = i;
-          renderSheet();
-          fb.innerHTML += `<div class="feedback good">🎉 ${esc(friend().name)}의 물건이었어요! 활동지에 이름을 적었어요.</div>
-            <div class="row center"><button class="btn primary" id="gNext">친구가 물어볼 차례 ➜</button></div>`;
-        } else {
-          fb.innerHTML += `<div class="feedback info">${esc(friend().name)}의 물건이 아니래요.</div>
-            <div class="row center"><button class="btn ghost" id="gAgain">다른 물건 물어보기</button><button class="btn primary" id="gNext">친구가 물어볼 차례 ➜</button></div>`;
-          const again = $('#gAgain');
-          if (ITEMS.every((_, k) => me.has(k) || g.asked.has(k))) again.remove();
-          else again.onclick = () => askStep();
-        }
-        $('#gNext').onclick = beAsked;
-      },
-    });
-  }
-
-  // 2단계: 친구가 나에게 물어보기
-  async function beAsked() {
-    const i = Math.floor(Math.random() * ITEMS.length);
-    const it = ITEMS[i], mine = me.has(i);
-    const q = sentence(it, 'q').en, expect = sentence(it, mine ? 'yes' : 'no');
-    stage(`
-      <h3>🙋 ${esc(friend().name)}의 질문이에요! 대답해 보세요</h3>
-      <div class="ask-item"><img src="${img(it)}" alt="${it.en}">
-        <div><div class="q-en">“${esc(q)}”</div>
-        <p class="tip">이 ${it.koTopic} 내 물건(<b class="me">Me</b>)일까요? 아래 활동지를 보고 대답하세요.</p>
-        <div class="row"><button class="say" id="gHear">🔊 다시 듣기</button><button class="say" id="gHint">💡 힌트 보기</button></div>
-        <div id="gHintText" class="ko" hidden>${esc(expect.en)} <br>(${expect.ko})</div></div></div>
-      <div id="gRec"></div><div id="gFb"></div>`);
-    $('#gHear').onclick = () => say(q);
-    $('#gHint').onclick = () => { $('#gHintText').hidden = false; speak(expect.en); };
-    say(q);
-
-    mountRecorder($('#gRec'), () => expect.en, {
-      label: '🎙️ 녹음하고 대답하기',
-      onResult(r) {
-        const fb = $('#gFb');
-        if (!r.supported) {
-          fb.innerHTML = `<p class="tip">자동 채점이 안 되는 브라우저예요. 내가 뭐라고 대답했나요?</p>
-            <div class="selfcheck"><button class="btn" data-a="yes">⭕ Yes, it's mine.</button><button class="btn" data-a="no">❌ No, it's not.</button></div>`;
-          $$('[data-a]', fb).forEach(b => b.onclick = () => judge(b.dataset.a === 'yes', 100));
-          return;
-        }
-        const t = r.tokens || [];
-        const yi = t.indexOf('yes'), ni = Math.min(...['no', 'not'].map(w => (t.indexOf(w) < 0 ? 1e9 : t.indexOf(w))));
-        if (yi < 0 && ni === 1e9) {
-          fb.innerHTML = `<div class="feedback bad">“Yes”인지 “No”인지 잘 안 들렸어요. 다시 말해 보세요!</div>`;
-          return;
-        }
-        judge(yi >= 0 && (ni === 1e9 || yi < ni), r.score);
-      },
-    });
-
-    function judge(saidYes, score) {
-      const fb = $('#gFb');
-      $('#gRec').querySelector('.rec').disabled = true;
-      if (saidYes !== mine) {
-        fb.innerHTML = `<div class="feedback bad">앗! 이 ${it.koTopic} ${mine ? '내 물건(Me)이에요. <b>Yes</b>' : '내 물건이 아니에요. <b>No</b>'}로 대답해야 해요.<br>
-          정답: “${esc(expect.en)}”</div>
-          <div class="row center"><button class="say" id="gModel">🔊 정답 듣기</button><button class="btn ghost" id="gRetry">다시 대답하기</button></div>`;
-        $('#gModel').onclick = () => speak(expect.en);
-        $('#gRetry').onclick = () => { $('#gRec').querySelector('.rec').disabled = false; fb.innerHTML = ''; };
-        return;
-      }
-      g.met++;
-      renderSheet();
-      const reply = mine ? 'Oh, here you are!' : 'Okay. Thank you!';
-      fb.innerHTML = `<div class="feedback good">⭕ 알맞게 대답했어요! ${score < 70 ? '문장을 조금 더 정확하게 말해 보면 더 좋아요.' : '발음도 아주 좋아요!'}</div>
-        <div class="feedback info">💬 ${esc(friend().name)}: “${reply} Bye!”</div>
-        <div class="row center"><button class="btn primary" id="gNextFriend">다음 친구 만나기 ➜</button></div>`;
-      say(`${reply} Bye!`);
-      $('#gNextFriend').onclick = () => { g.k++; meetFriend(); };
-    }
-  }
-
-  renderMe();
-})();
+pages.mine = makePractice($('#mine'), { answer: 'yes', pick: i => me.has(i), title: '내 물건 (Me) 2개 — 내가 주인이라면!' });
+pages.notmine = makePractice($('#notmine'), { answer: 'no', pick: i => !me.has(i), title: '내 물건이 아닌 것 4개 — 내가 주인이 아니면!' });
