@@ -172,3 +172,22 @@ main { max-width: 1000px; margin: 0 auto; padding: 4px 16px 24px; }
   .practice-card .row { justify-content: center; }
   .keyrow b { font-size: 18px; }
 }
+
+/* 대화 카드 (질문 + 대답) */
+.dialog { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-top: 16px; }
+.dlg-head { position: relative; display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; }
+.dlg-head img { width: 150px; height: 150px; object-fit: contain; }
+.dlg-head .colorbar { width: 18px; height: 140px; border-radius: 6px; margin-left: -10px; }
+.dlg-line { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px 12px; padding: 14px 0 6px; border-top: 2px dashed var(--line); margin-top: 12px; }
+.dlg-line .en { font-family: "Jua", sans-serif; font-size: 30px; line-height: 1.25; word-break: keep-all; }
+.dlg-line .ko { color: var(--muted); font-size: 15px; }
+.dlg-line > div:last-child { grid-column: 1 / -1; }
+.dlg-line .recbox { box-shadow: none; padding: 4px 0 0; margin-top: 0; }
+.dlg-line .btn.rec { font-size: 19px; padding: 10px 22px; }
+@media (max-width: 720px) {
+  .dlg-line { grid-template-columns: 1fr auto; }
+  .dlg-line .who { grid-column: 1 / -1; }
+  .dlg-line .en { font-size: 24px; }
+  .dlg-line .ko { text-align: left; }
+  .dlg-head img { width: 120px; height: 120px; }
+}

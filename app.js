@@ -366,8 +366,9 @@ $$('.tab').forEach(t => t.onclick = () => goTab(t.dataset.tab));
 })();
 
 /* ---------------- ② Me 물건 연습 / ③ 내 물건 아닌 것 연습 ---------------- */
+// 물건을 누르면 질문과 대답이 한 화면에 함께 나와요. 줄마다 듣기·말하기를 할 수 있어요.
 function makePractice(root, { answer, pick, title }) {
-  const st = { k: 0, mode: 'q' };
+  const st = { k: 0 };
   const best = () => store.get('best', {});
   const list = () => ITEMS.map((_, i) => i).filter(pick);
   const isYes = answer === 'yes';
@@ -379,40 +380,38 @@ function makePractice(root, { answer, pick, title }) {
     </div>
     <div class="body">
       <div class="step-label">${title}</div>
+      <p class="hint">👇 물건을 누르면 질문과 대답이 나와요.</p>
       <div class="thumbs items"></div>
-      <div class="modes">
-        <button class="mode" data-mode="q">❓ 질문하기<small>Is this your ___?</small></button>
-        <button class="mode" data-mode="${answer}">${isYes ? '⭕ 대답하기 (Yes)' : '❌ 대답하기 (No)'}
-          <small>${isYes ? "Yes, it's mine." : "No, it's not. My ___ is ___."}</small></button>
-      </div>
-      <div class="practice-card">
-        <div class="pc-left"><img class="p-img" alt=""><div class="colorbar p-color"></div></div>
-        <div class="pc-right">
-          <div class="situation"></div>
-          <div class="target"></div>
-          <div class="ko"></div>
-          <div class="row">
-            <button class="btn listen p-listen">🔊 듣기</button>
-            <button class="btn listen p-ask">👂 친구 질문 듣기</button>
-            <label class="toggle"><input type="checkbox" class="p-hide"> 문장 숨기기 (도전!)</label>
-          </div>
+      <div class="dialog">
+        <div class="dlg-head">
+          <img class="p-img" alt=""><div class="colorbar p-color"></div>
+          <button class="btn primary p-all">🔊 대화 전체 듣기</button>
+        </div>
+        <div class="dlg-line q">
+          <div class="who"><span class="badge q">질문</span></div>
+          <div class="said"><div class="en p-q"></div><div class="ko p-qko"></div></div>
+          <button class="btn listen p-hq">🔊 듣기</button>
+          <div class="p-recq"></div>
+        </div>
+        <div class="dlg-line a">
+          <div class="who"><span class="badge ${answer}">${isYes ? '대답 (Me!)' : '대답 (내 것 아님)'}</span></div>
+          <div class="said"><div class="en p-a"></div><div class="ko p-ako"></div></div>
+          <button class="btn listen p-ha">🔊 듣기</button>
+          <div class="p-reca"></div>
         </div>
       </div>
-      <div class="p-rec"></div>
-      <div class="row center"><button class="btn ghost p-next">다음 ➜</button></div>
+      <div class="row center"><button class="btn ghost p-next">다음 물건 ➜</button></div>
     </div>`;
   $('.go-choose', root).onclick = () => goTab('choose');
 
   const cur = () => ITEMS[list()[st.k]];
-  const target = () => sentence(cur(), st.mode);
-
-  const rec = mountRecorder($('.p-rec', root), () => target().en, {
-    onResult(r) {
-      if (!r.supported || r.score == null || r.empty) return;
-      const b = best(), key = `${cur().id}-${st.mode}`;
-      if (b[key] == null || r.score > b[key]) { b[key] = r.score; store.set('best', b); renderThumbs(); }
-    },
-  });
+  const save = mode => r => {
+    if (!r.supported || r.score == null || r.empty) return;
+    const b = best(), key = `${cur().id}-${mode}`;
+    if (b[key] == null || r.score > b[key]) { b[key] = r.score; store.set('best', b); renderThumbs(); }
+  };
+  const recQ = mountRecorder($('.p-recq', root), () => sentence(cur(), 'q').en, { label: '🎙️ 말하기', onResult: save('q') });
+  const recA = mountRecorder($('.p-reca', root), () => sentence(cur(), answer).en, { label: '🎙️ 말하기', onResult: save(answer) });
 
   const renderThumbs = () => {
     const b = best();
@@ -432,36 +431,28 @@ function makePractice(root, { answer, pick, title }) {
     $('.body', root).hidden = !ready;
     if (!ready) return;
     if (st.k >= list().length) st.k = 0;
-    const it = cur(), s = target();
+    const it = cur(), q = sentence(it, 'q'), a = sentence(it, answer);
     renderThumbs();
-    $$('.mode', root).forEach(b => b.classList.toggle('on', b.dataset.mode === st.mode));
     $('.p-img', root).src = img(it); $('.p-img', root).alt = it.en;
     $('.p-color', root).style.background = it.hex;
-    $('.situation', root).innerHTML = st.mode === 'q'
-      ? '친구에게 물건을 보여 주며 물어보세요.'
-      : `친구가 “Is this your ${esc(it.en)}?” 하고 물었어요. ` +
-        (isYes ? '<b>내 물건(Me)이 맞아요!</b>' : `<b>내 물건이 아니에요!</b> 내 ${it.koTopic} ${it.koColor}이에요.`);
-    $('.target', root).textContent = s.en;
-    $('.target', root).classList.toggle('hidden', $('.p-hide', root).checked);
-    $('.ko', root).textContent = s.ko;
-    $('.p-ask', root).hidden = st.mode === 'q';
-    rec.reset();
+    $('.p-q', root).textContent = q.en; $('.p-qko', root).textContent = q.ko;
+    $('.p-a', root).textContent = a.en; $('.p-ako', root).textContent = a.ko;
+    recQ.reset(); recA.reset();
   };
 
-  $('.items', root).onclick = e => { const t = e.target.closest('.thumb'); if (t) { st.k = Number(t.dataset.k); st.mode = 'q'; render(); } };
-  $('.modes', root).onclick = e => {
-    const b = e.target.closest('.mode'); if (!b) return;
-    st.mode = b.dataset.mode; render();
-    if (st.mode !== 'q') speak(sentence(cur(), 'q').en, { pitch: 1.3 });
+  const playAll = async () => {
+    await speak(sentence(cur(), 'q').en, { pitch: 1.3 });
+    await speak(sentence(cur(), answer).en);
   };
-  $('.p-listen', root).onclick = () => speak(target().en);
-  $('.p-ask', root).onclick = () => speak(sentence(cur(), 'q').en, { pitch: 1.3 });
-  $('.p-hide', root).onchange = () => $('.target', root).classList.toggle('hidden', $('.p-hide', root).checked);
-  $('.target', root).onclick = () => { if ($('.p-hide', root).checked) $('.target', root).classList.toggle('hidden'); };
-  $('.p-next', root).onclick = () => {
-    if (st.mode === 'q') { st.mode = answer; render(); speak(sentence(cur(), 'q').en, { pitch: 1.3 }); }
-    else { st.mode = 'q'; st.k = (st.k + 1) % list().length; render(); }
+
+  $('.items', root).onclick = e => {
+    const t = e.target.closest('.thumb'); if (!t) return;
+    st.k = Number(t.dataset.k); render(); playAll();
   };
+  $('.p-all', root).onclick = playAll;
+  $('.p-hq', root).onclick = () => speak(sentence(cur(), 'q').en, { pitch: 1.3 });
+  $('.p-ha', root).onclick = () => speak(sentence(cur(), answer).en);
+  $('.p-next', root).onclick = () => { st.k = (st.k + 1) % list().length; render(); playAll(); window.scrollTo(0, 0); };
 
   return { render };
 }
