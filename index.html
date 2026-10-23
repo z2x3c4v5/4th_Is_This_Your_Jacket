@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Is This Your Jacket? 말하기 연습</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="title">
+    <span class="lesson">Lesson 7</span>
+    <h1>Is This Your Jacket?</h1>
+  </div>
+  <div class="speed">
+    <span>원어민 속도</span>
+    <button class="chip" data-rate="0.95">보통</button>
+    <button class="chip on" data-rate="0.75">천천히</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab on" data-tab="learn">① 표현 익히기</button>
+  <button class="tab" data-tab="practice">② 말하기 연습</button>
+  <button class="tab" data-tab="game">③ 친구 찾기 게임</button>
+</nav>
+
+<div id="support" class="notice" hidden></div>
+
+<main>
+  <!-- ① 표현 익히기 -->
+  <section id="learn" class="panel on">
+    <div class="keybox">
+      <div class="keyrow">
+        <span class="badge q">질문</span>
+        <div><b>Is this your ______?</b><small>이것은 너의 ______니?</small></div>
+      </div>
+      <div class="keyrow">
+        <span class="badge yes">내가 주인이면!</span>
+        <div><b>Yes, it's mine.</b><small>응, 그건 내 거야.</small></div>
+      </div>
+      <div class="keyrow">
+        <span class="badge no">내가 주인이 아니면!</span>
+        <div><b>No, it's not. My ______ is ______.</b><small>아니, 그렇지 않아. 내 ______는 ______색이야.</small></div>
+      </div>
+    </div>
+    <p class="hint">👇 물건을 눌러서 문장을 듣고 따라 말해 보세요. 오른쪽 색깔이 <b>내 물건의 색깔</b>이에요.</p>
+    <div id="learnGrid" class="grid"></div>
+    <div id="learnDetail" class="detail" hidden></div>
+  </section>
+
+  <!-- ② 말하기 연습 -->
+  <section id="practice" class="panel">
+    <div class="step-label">1. 물건 고르기</div>
+    <div id="pItems" class="thumbs"></div>
+    <div class="step-label">2. 상황 고르기</div>
+    <div id="pModes" class="modes">
+      <button class="mode on" data-mode="q">❓ 내가 질문하기</button>
+      <button class="mode" data-mode="yes">⭕ 내 물건이에요 (Yes)</button>
+      <button class="mode" data-mode="no">❌ 내 물건이 아니에요 (No)</button>
+    </div>
+    <div class="practice-card">
+      <div class="pc-left"><img id="pImg" alt=""><div id="pColor" class="colorbar"></div></div>
+      <div class="pc-right">
+        <div id="pSituation" class="situation"></div>
+        <div id="pTarget" class="target"></div>
+        <div id="pKo" class="ko"></div>
+        <div class="row">
+          <button id="pListen" class="btn listen">🔊 듣기</button>
+          <label class="toggle"><input type="checkbox" id="pHide"> 문장 숨기기 (도전!)</label>
+        </div>
+      </div>
+    </div>
+    <div id="pRec"></div>
+    <div class="row center">
+      <button id="pNext" class="btn ghost">다음 문장 ➜</button>
+    </div>
+  </section>
+
+  <!-- ③ 친구 찾기 게임 -->
+  <section id="game" class="panel">
+    <div id="gSetup">
+      <div class="keybox small">
+        <p>📝 활동지처럼 <b>6개 물건 중 2개</b>가 내 물건(<b class="me">Me</b>)이에요.<br>
+        가상 친구들을 만나 <b>Is this your ___?</b> 하고 물어보고, 주인인 친구의 이름을 모아 보세요!<br>
+        친구도 나에게 물어보니까 <b>Yes / No</b>로 알맞게 대답해야 해요.</p>
+      </div>
+      <div class="step-label">내 물건 2개 고르기 (Me)</div>
+      <div id="gMeGrid" class="thumbs"></div>
+      <div class="row center">
+        <button id="gRandom" class="btn ghost">🎲 랜덤으로 고르기</button>
+        <button id="gStart" class="btn primary" disabled>게임 시작 ▶</button>
+      </div>
+    </div>
+    <div id="gPlay" hidden>
+      <div class="gtop">
+        <div class="friend">
+          <div id="gAvatar" class="avatar"></div>
+          <div>
+            <div id="gName" class="fname"></div>
+            <div id="gBubble" class="bubble"></div>
+          </div>
+        </div>
+        <div class="scorebox">
+          <div>모은 이름 <b id="gNames">0</b></div>
+          <div>만난 친구 <b id="gMet">0</b></div>
+        </div>
+      </div>
+      <div id="gStage" class="stage"></div>
+      <div class="step-label">나의 활동지</div>
+      <div id="gSheet" class="sheet"></div>
+      <div class="row center"><button id="gReset" class="btn ghost small">처음부터 다시</button></div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">🎙️ 마이크 사용을 허용해 주세요 · 음성 인식은 <b>크롬(Chrome)</b> 또는 <b>엣지(Edge)</b>, 사파리에서 가장 잘 돼요.</footer>
+<script src="app.js"></script>
+</body>
+</html>
